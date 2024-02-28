@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bevy = "0.13.0"
+#visualizer = { git = "https://github.com/matthunz/visualizer" }
+visualizer = { path = "../visualizer" }
