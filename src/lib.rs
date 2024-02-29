@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct LegState {
-    pub  shoulder: f64,
-    pub  arm: f64,
-    pub  wrist: f64,
+    pub  shoulder: f32,
+    pub  arm: f32,
+    pub  wrist: f32,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
