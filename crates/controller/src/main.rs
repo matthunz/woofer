@@ -196,6 +196,8 @@ fn handle_event(
     mut joint_query: Query<&mut RevoluteJoint>,
 ) {
     for StreamEvent(event) in reader.read() {
+        dbg!(&event);
+
         for plant in &mut plant_query {
             update_leg(
                 &plant.front_left_leg,

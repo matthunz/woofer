@@ -1,11 +1,16 @@
 use axum::{
+    extract::State,
     http::StatusCode,
     response::{sse, Sse},
     routing::{get, post},
     Json, Router,
 };
 use futures::{stream, Stream, TryStreamExt};
-use std::time::Duration;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
 use tokio_stream::StreamExt;
 use woofer::{Event, Message};
 
@@ -15,26 +20,30 @@ async fn main() {
 
     let app = Router::new()
         .route("/state", get(sse_handler))
-        .route("/state", post(set_state));
+        .route("/state", post(set_state))
+        .with_state(Arc::new(Mutex::new(Event::default())));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn set_state(Json(msg): Json<Message>) -> StatusCode {
+async fn set_state(State(state): State<Arc<Mutex<Event>>>, Json(msg): Json<Message>) -> StatusCode {
     match msg {
-        Message::Pose { body } => {
-            dbg!(body);
+        Message::Pose { body: _ } => {
+            *state.lock().unwrap() = Event::default();
         }
     }
 
     StatusCode::OK
 }
 
-async fn sse_handler() -> Sse<impl Stream<Item = Result<sse::Event, axum::Error>>> {
-    let stream = stream::repeat_with(|| sse::Event::default().json_data(Event::default()))
-        .map_err(Into::into)
-        .throttle(Duration::from_secs(1));
+async fn sse_handler(
+    State(state): State<Arc<Mutex<Event>>>,
+) -> Sse<impl Stream<Item = Result<sse::Event, axum::Error>>> {
+    let stream =
+        stream::repeat_with(move || sse::Event::default().json_data(state.lock().unwrap().clone()))
+            .map_err(Into::into)
+            .throttle(Duration::from_millis(100));
 
     Sse::new(stream).keep_alive(
         axum::response::sse::KeepAlive::new()
