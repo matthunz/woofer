@@ -4896,11 +4896,13 @@ dependencies = [
 name = "woofer-controller"
 version = "0.1.0"
 dependencies = [
+ "bevy",
  "reqwest",
  "reqwest-eventsource",
  "serde_json",
  "tokio",
  "tokio-stream",
+ "visualizer",
  "woofer",
 ]
 
