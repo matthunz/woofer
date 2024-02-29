@@ -1,14 +1,14 @@
 use bevy::math::Quat;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 struct LegState {
     shoulder: f64,
     arm: f64,
     wrist: f64,
 }
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Event {
     body: Quat,
     front_left_leg: LegState,

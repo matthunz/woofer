@@ -1,13 +1,12 @@
 [package]
-name = "woofer-device"
+name = "woofer-controller"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.7.4"
-futures = "0.3.30"
+reqwest = "0.11.24"
+reqwest-eventsource = "0.5.0"
+serde_json = "1.0.114"
 tokio = { version = "1.36.0", features = ["full"] }
 tokio-stream = "0.1.14"
-tower-http = "0.5.2"
-tracing-subscriber = "0.3.18"
 woofer = { path = "../.." }

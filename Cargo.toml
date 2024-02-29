@@ -1,6 +1,7 @@
 [workspace]
 members = [
     ".",
+    "crates/controller",
     "crates/device"
 ]
 
