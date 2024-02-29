@@ -5,5 +5,6 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.13.0"
+serde = { version = "1.0.197", features = ["derive"] }
 #visualizer = { git = "https://github.com/matthunz/visualizer" }
 visualizer = { path = "../visualizer" }

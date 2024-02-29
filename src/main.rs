@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+
 use visualizer::{update_revolute_joints, Link, RevoluteJoint};
 
 #[derive(Component)]
