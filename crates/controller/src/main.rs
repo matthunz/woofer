@@ -1,12 +1,12 @@
-use bevy::prelude::*;
+use bevy::{input::gamepad::GamepadEvent, prelude::*};
 use reqwest_eventsource::{Event as SseEvent, EventSource};
 use tokio::{
     runtime::Runtime,
-    sync::mpsc::{self, UnboundedSender},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 use tokio_stream::StreamExt;
 use visualizer::{update_revolute_joints, Link, RevoluteJoint};
-use woofer::{Event, LegState};
+use woofer::{Event, LegState, Message};
 
 pub struct Leg {
     shoulder: Entity,
@@ -32,9 +32,21 @@ fn main() {
         })
         .add_event::<StreamEvent>()
         .add_systems(Startup, setup)
-        .add_systems(Update, (read_stream, handle_event, update_revolute_joints))
+        .add_systems(
+            Update,
+            (
+                read_stream,
+                handle_event,
+                update_revolute_joints,
+                gamepad_connections,
+                gamepad_input,
+            ),
+        )
         .run();
 }
+
+#[derive(Resource, Deref)]
+struct StreamSender(mpsc::UnboundedSender<Message>);
 
 #[derive(Resource, Deref)]
 struct StreamReceiver(mpsc::UnboundedReceiver<Event>);
@@ -44,10 +56,12 @@ struct StreamEvent(Event);
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let (tx, rx) = mpsc::unbounded_channel();
-    std::thread::spawn(move || {
-        Runtime::new().unwrap().block_on(task(tx));
-    });
+    let (msg_tx, msg_rx) = mpsc::unbounded_channel();
+    commands.insert_resource(StreamSender(msg_tx));
     commands.insert_resource(StreamReceiver(rx));
+    std::thread::spawn(move || {
+        Runtime::new().unwrap().block_on(task(tx, msg_rx));
+    });
 
     let mut cell = None;
     let body = commands
@@ -178,7 +192,7 @@ fn read_stream(mut receiver: ResMut<StreamReceiver>, mut events: EventWriter<Str
 
 fn handle_event(
     mut reader: EventReader<StreamEvent>,
-    mut plant_query: Query<&mut Plant>,
+    mut plant_query: Query<&Plant>,
     mut joint_query: Query<&mut RevoluteJoint>,
 ) {
     for StreamEvent(event) in reader.read() {
@@ -214,7 +228,18 @@ fn update_leg(leg: &Leg, state: &LegState, joint_query: &mut Query<&mut Revolute
     wrist.angle = state.wrist;
 }
 
-async fn task(tx: UnboundedSender<Event>) {
+async fn task(tx: UnboundedSender<Event>, mut msg_rx: UnboundedReceiver<Message>) {
+    tokio::spawn(async move {
+        while let Some(msg) = msg_rx.recv().await {
+            reqwest::Client::new()
+                .post("http://localhost:8080/state")
+                .json(&msg)
+                .send()
+                .await
+                .unwrap();
+        }
+    });
+
     let mut es = EventSource::get("http://localhost:8080/state");
     while let Some(event) = es.next().await {
         match event {
@@ -228,5 +253,51 @@ async fn task(tx: UnboundedSender<Event>) {
                 es.close();
             }
         }
+    }
+}
+
+#[derive(Resource)]
+struct MyGamepad(Gamepad);
+
+fn gamepad_connections(
+    mut commands: Commands,
+    my_gamepad: Option<Res<MyGamepad>>,
+    mut gamepad_evr: EventReader<GamepadEvent>,
+) {
+    for ev in gamepad_evr.read() {
+        match &ev {
+            GamepadEvent::Connection(info) => {
+                if my_gamepad.is_none() {
+                    commands.insert_resource(MyGamepad(info.gamepad));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn gamepad_input(
+    axes: Res<Axis<GamepadAxis>>,
+    my_gamepad: Option<Res<MyGamepad>>,
+    tx: Res<StreamSender>,
+) {
+    let gamepad = if let Some(gp) = my_gamepad {
+        gp.0
+    } else {
+        return;
+    };
+
+    let axis_lx = GamepadAxis {
+        gamepad,
+        axis_type: GamepadAxisType::LeftStickX,
+    };
+    let axis_ly = GamepadAxis {
+        gamepad,
+        axis_type: GamepadAxisType::LeftStickY,
+    };
+
+    if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
+        let body = Quat::from_rotation_x(x) * Quat::from_rotation_y(y);
+        tx.0.send(Message::Pose { body }).unwrap();
     }
 }
